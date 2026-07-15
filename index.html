@@ -684,24 +684,26 @@
   var modalAllBtn = document.getElementById('modalAllBtn');
   var modalOnlyBtn = document.getElementById('modalOnlyBtn');
 
+  var modalResolve = null;
+  function closeModal(choice) {
+    if (!modalResolve) return;
+    var resolve = modalResolve;
+    modalResolve = null;
+    modalBackdrop.hidden = true;
+    resolve(choice);
+  }
+  modalAllBtn.addEventListener('click', function () { closeModal('all'); });
+  modalOnlyBtn.addEventListener('click', function () { closeModal('only'); });
+  modalBackdrop.addEventListener('click', function (e) { if (e.target === modalBackdrop) closeModal('only'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal('only'); });
+
   function askScope(message, allLabel) {
+    closeModal('only');
     return new Promise(function (resolve) {
       modalText.textContent = message;
       modalAllBtn.textContent = allLabel;
       modalBackdrop.hidden = false;
-      function cleanup(choice) {
-        modalBackdrop.hidden = true;
-        modalAllBtn.removeEventListener('click', onAll);
-        modalOnlyBtn.removeEventListener('click', onOnly);
-        modalBackdrop.removeEventListener('click', onBackdrop);
-        resolve(choice);
-      }
-      function onAll() { cleanup('all'); }
-      function onOnly() { cleanup('only'); }
-      function onBackdrop(e) { if (e.target === modalBackdrop) cleanup('only'); }
-      modalAllBtn.addEventListener('click', onAll);
-      modalOnlyBtn.addEventListener('click', onOnly);
-      modalBackdrop.addEventListener('click', onBackdrop);
+      modalResolve = resolve;
     });
   }
 
