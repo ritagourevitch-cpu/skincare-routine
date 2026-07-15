@@ -1,0 +1,13 @@
+{
+  "name": "שגרת הטיפוח שלי",
+  "short_name": "טיפוח",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6EFEA",
+  "theme_color": "#C17A3B",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
