@@ -428,6 +428,50 @@
     color: var(--ink-faint);
     padding-top: 4px;
   }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 15, 10, .5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    z-index: 50;
+  }
+  @media (min-width: 480px) {
+    .modal-backdrop { align-items: center; }
+  }
+  .modal-card {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-card);
+    padding: 20px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .modal-text {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .modal-actions { display: flex; flex-direction: column; gap: 8px; }
+  .modal-actions button {
+    font-family: inherit;
+    border: 0;
+    border-radius: 12px;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  #modalAllBtn { background: var(--accent); color: #fff; }
+  #modalOnlyBtn { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+  .modal-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 
 <div class="app" dir="rtl" lang="he">
@@ -469,6 +513,16 @@
     </div>
     <p class="footnote">הסימונים מתאפסים אוטומטית עם תחילת כל יום</p>
   </section>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal-card">
+    <p class="modal-text" id="modalText"></p>
+    <div class="modal-actions">
+      <button type="button" id="modalAllBtn"></button>
+      <button type="button" id="modalOnlyBtn">רק כאן</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -625,6 +679,60 @@
   var newStepName = document.getElementById('newStepName');
   var newStepProduct = document.getElementById('newStepProduct');
   var addStepBtn = document.getElementById('addStepBtn');
+  var modalBackdrop = document.getElementById('modalBackdrop');
+  var modalText = document.getElementById('modalText');
+  var modalAllBtn = document.getElementById('modalAllBtn');
+  var modalOnlyBtn = document.getElementById('modalOnlyBtn');
+
+  function askScope(message, allLabel) {
+    return new Promise(function (resolve) {
+      modalText.textContent = message;
+      modalAllBtn.textContent = allLabel;
+      modalBackdrop.hidden = false;
+      function cleanup(choice) {
+        modalBackdrop.hidden = true;
+        modalAllBtn.removeEventListener('click', onAll);
+        modalOnlyBtn.removeEventListener('click', onOnly);
+        modalBackdrop.removeEventListener('click', onBackdrop);
+        resolve(choice);
+      }
+      function onAll() { cleanup('all'); }
+      function onOnly() { cleanup('only'); }
+      function onBackdrop(e) { if (e.target === modalBackdrop) cleanup('only'); }
+      modalAllBtn.addEventListener('click', onAll);
+      modalOnlyBtn.addEventListener('click', onOnly);
+      modalBackdrop.addEventListener('click', onBackdrop);
+    });
+  }
+
+  function stepsEqual(a, b) { return a.name === b.name && a.product === b.product; }
+  function listsIdentical(listA, listB) {
+    if (listA.length !== listB.length) return false;
+    var remaining = listB.slice();
+    for (var i = 0; i < listA.length; i++) {
+      var idx = remaining.findIndex(function (s) { return stepsEqual(s, listA[i]); });
+      if (idx === -1) return false;
+      remaining.splice(idx, 1);
+    }
+    return true;
+  }
+  function findOtherDaysWithStep(currentDay, stepName, productValue) {
+    var matches = [];
+    for (var d = 0; d < 7; d++) {
+      if (d === currentDay) continue;
+      if (data.pm[d].some(function (s) { return s.name === stepName && s.product === productValue; })) matches.push(d);
+    }
+    return matches;
+  }
+  function findIdenticalDays(currentDay, listSnapshot) {
+    var matches = [];
+    for (var d = 0; d < 7; d++) {
+      if (d === currentDay) continue;
+      if (listsIdentical(data.pm[d], listSnapshot)) matches.push(d);
+    }
+    return matches;
+  }
+  function dayNamesList(indices) { return indices.map(function (d) { return DAY_LABELS[d]; }).join(', '); }
 
   dateLabel.textContent = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 
@@ -656,16 +764,34 @@
     renderSteps();
   });
 
-  addStepBtn.addEventListener('click', function () {
+  addStepBtn.addEventListener('click', async function () {
     var name = newStepName.value.trim();
     if (!name) { newStepName.focus(); return; }
     var product = newStepProduct.value.trim();
+    var currentDay = selectedDayIndex;
+    var snapshotBefore = mode === 'pm' ? getActiveList().slice() : null;
+
     getActiveList().push({ id: uid(), name: name, product: product, done: false });
     newStepName.value = '';
     newStepProduct.value = '';
     save();
     renderAll();
     newStepName.focus();
+
+    if (mode === 'pm' && snapshotBefore) {
+      var matches = findIdenticalDays(currentDay, snapshotBefore);
+      if (matches.length) {
+        var choice = await askScope(
+          'ל' + dayNamesList(matches) + ' יש כרגע בדיוק את אותה שגרה. להוסיף את "' + name + '" גם שם?',
+          'הוספה גם ל' + dayNamesList(matches)
+        );
+        if (choice === 'all') {
+          matches.forEach(function (d) { data.pm[d].push({ id: uid(), name: name, product: product, done: false }); });
+          save();
+          renderAll();
+        }
+      }
+    }
   });
   [newStepName, newStepProduct].forEach(function (inp) {
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') addStepBtn.click(); });
@@ -842,7 +968,29 @@
         productInput.value = step.product;
         productInput.placeholder = 'מוצר (לא חובה)';
         productInput.setAttribute('aria-label', 'מוצר');
+        var originalProduct = step.product;
         productInput.addEventListener('input', function () { step.product = productInput.value; save(); });
+        productInput.addEventListener('change', async function () {
+          var newVal = step.product;
+          if (mode !== 'pm' || !originalProduct || newVal === originalProduct) { originalProduct = newVal; return; }
+          var currentDay = selectedDayIndex;
+          var stepName = step.name;
+          var oldVal = originalProduct;
+          originalProduct = newVal;
+          var matches = findOtherDaysWithStep(currentDay, stepName, oldVal);
+          if (matches.length) {
+            var choice = await askScope(
+              'להחליף את "' + oldVal + '" ב"' + newVal + '" גם ב' + dayNamesList(matches) + '?',
+              'החלפה גם ב' + dayNamesList(matches)
+            );
+            if (choice === 'all') {
+              matches.forEach(function (d) {
+                data.pm[d].forEach(function (s) { if (s.name === stepName && s.product === oldVal) s.product = newVal; });
+              });
+              save();
+            }
+          }
+        });
         fields.appendChild(nameInput);
         fields.appendChild(productInput);
 
@@ -851,10 +999,29 @@
         delBtn.type = 'button';
         delBtn.setAttribute('aria-label', 'מחיקת ' + step.name);
         delBtn.textContent = '✕';
-        delBtn.addEventListener('click', function () {
+        delBtn.addEventListener('click', async function () {
+          var currentDay = selectedDayIndex;
+          var stepName = step.name, stepProduct = step.product;
           setActiveList(getActiveList().filter(function (s) { return s.id !== step.id; }));
           save();
           renderAll();
+          if (mode === 'pm') {
+            var matches = findOtherDaysWithStep(currentDay, stepName, stepProduct);
+            if (matches.length) {
+              var label = stepName + (stepProduct ? ' — ' + stepProduct : '');
+              var choice = await askScope(
+                'להוריד את "' + label + '" גם מ' + dayNamesList(matches) + '?',
+                'הסרה גם מ' + dayNamesList(matches)
+              );
+              if (choice === 'all') {
+                matches.forEach(function (d) {
+                  data.pm[d] = data.pm[d].filter(function (s) { return !(s.name === stepName && s.product === stepProduct); });
+                });
+                save();
+                renderAll();
+              }
+            }
+          }
         });
 
         li.appendChild(handle);
