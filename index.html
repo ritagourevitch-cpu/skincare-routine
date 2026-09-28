@@ -528,7 +528,7 @@
 
 <script>
 (function () {
-  var STORAGE_KEY = 'skincareRoutineData_v3';
+  var STORAGE_KEY = 'skincareRoutineData_v4';
   var CHECK_ICON = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10.5L8 14.5L16 6" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var DRAG_ICON = '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="4" r="1.3" fill="currentColor"/><circle cx="11" cy="4" r="1.3" fill="currentColor"/><circle cx="5" cy="8" r="1.3" fill="currentColor"/><circle cx="11" cy="8" r="1.3" fill="currentColor"/><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="11" cy="12" r="1.3" fill="currentColor"/></svg>';
   var DAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -551,71 +551,46 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   function seedData() {
+    function s(name, product) { return { id: uid(), name: name, product: product, done: false }; }
+    var oil = ['שמן ניקוי', 'SKIN1004 Light Cleansing Oil'];
+    var cleanser = ['ניקוי', 'סבון Isntree Green Tea Cleanser'];
+    var ampoule = ['אמפולה', 'Isntree Bifida Ampoule'];
+    var eyes = ['עיניים', 'קרם עיניים CeraVe'];
+    var cream = ['לחות', 'קרם Promise Fresh 24-7'];
+    function retinolDay() {
+      return [s(oil[0], oil[1]), s(cleanser[0], cleanser[1]), s(ampoule[0], ampoule[1]),
+        s('רטינואיד', 'סרום רטינול Haruharu'), s(eyes[0], eyes[1]), s(cream[0], cream[1])];
+    }
+    function restDay() {
+      return [s(oil[0], oil[1]), s(cleanser[0], cleanser[1]), s('נוגד חמצון', 'סרום ויטמין סי Manufaktura'),
+        s(ampoule[0], ampoule[1]), s(eyes[0], eyes[1]), s(cream[0], cream[1])];
+    }
+    function wedDay() {
+      return [s(oil[0], oil[1]), s(cleanser[0], cleanser[1]), s('מסכת גופרית', 'משחת De La Cruz 10% Sulfur'),
+        s(ampoule[0], ampoule[1]), s(eyes[0], eyes[1]), s(cream[0], cream[1])];
+    }
+    function satDay() {
+      return [s(oil[0], oil[1]), s('ניקוי פעיל', 'סבון SALIUP'), s('מסכה', 'מסכת בוץ Promise'),
+        s(ampoule[0], ampoule[1]), s(eyes[0], eyes[1]), s(cream[0], cream[1])];
+    }
     return {
       lastDate: todayStr(),
       am: [
-        { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-        { id: uid(), name: 'טונר', product: 'Isntree - Green Tea Fresh Toner', done: false },
-        { id: uid(), name: 'קרם עיניים', product: 'CeraVe', done: false },
-        { id: uid(), name: 'קרם הגנה', product: '', done: false }
+        s('קרם הגנה', 'קרם הגנה Promise'),
+        s('ניקוי', 'סבון Isntree Green Tea Fresh Cleanser'),
+        s('טונר', 'Isntree Green Tea Fresh Toner'),
+        s('עיניים', 'קרם עיניים CeraVe'),
+        s('הגנה ולחות', 'קרם הגנה Haruharu Wonder (או Round Lab)'),
+        s('מי ורדים', 'Heritage Store')
       ],
       pm: {
-        0: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'רטינול', product: 'haruharu wonder - Retinol Serum', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Fresh 24-7', done: false }
-        ],
-        1: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-          { id: uid(), name: 'טונר', product: 'Isntree Green Tea Toner', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Comfort Zone', done: false }
-        ],
-        2: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון טיפולי', product: 'SALIUP', done: false },
-          { id: uid(), name: 'טונר', product: 'Isntree Green Tea Toner', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Comfort Zone', done: false }
-        ],
-        3: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-          { id: uid(), name: 'טונר אקטיבי', product: 'Some By Mi Miracle Toner', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Comfort Zone', done: false }
-        ],
-        4: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'רטינול', product: 'haruharu wonder - Retinol Serum', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Fresh 24-7', done: false }
-        ],
-        5: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון פנים', product: 'Isntree - Green Tea Fresh Cleanser', done: false },
-          { id: uid(), name: 'טונר', product: 'Isntree Green Tea Toner', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Comfort Zone', done: false }
-        ],
-        6: [
-          { id: uid(), name: 'שמן ניקוי', product: 'SKIN1004 Light Cleansing Oil', done: false },
-          { id: uid(), name: 'סבון טיפולי', product: 'SALIUP', done: false },
-          { id: uid(), name: 'טונר', product: 'Isntree Green Tea Toner', done: false },
-          { id: uid(), name: 'אמפולה', product: 'Isntree Bifida Ampoule', done: false },
-          { id: uid(), name: 'עיניים', product: 'קרם עיניים CeraVe', done: false },
-          { id: uid(), name: 'קרם לחות', product: 'קרם Promise Comfort Zone', done: false }
-        ]
+        0: retinolDay(),
+        1: restDay(),
+        2: retinolDay(),
+        3: wedDay(),
+        4: retinolDay(),
+        5: restDay(),
+        6: satDay()
       },
       history: {}
     };
