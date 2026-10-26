@@ -284,8 +284,8 @@
 
   .drag-handle {
     flex: 0 0 auto;
-    width: 26px;
-    height: 40px;
+    width: 36px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -294,15 +294,24 @@
     border: 0;
     cursor: grab;
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
     padding: 0;
   }
+  .drag-handle svg { width: 18px; height: 18px; }
   .drag-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .step-row.is-dragging {
+  .steps-list.is-reordering { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .steps-list.is-reordering .step-row { will-change: transform; }
+  .steps-list.is-reordering .step-row:not(.is-dragging) { transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+  .step-row.is-dragging,
+  .step-row.is-settling {
     box-shadow: 0 14px 30px -10px rgba(0,0,0,.35);
-    opacity: .97;
     position: relative;
     z-index: 5;
   }
+  .step-row.is-dragging { transition: none; cursor: grabbing; }
 
   .steps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .step-row {
@@ -853,63 +862,123 @@
     }
   }
 
+  function moveStep(fromIndex, toIndex) {
+    var list = getActiveList();
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length) return;
+    var item = list.splice(fromIndex, 1)[0];
+    list.splice(toIndex, 0, item);
+    save();
+  }
+
+  // Layout never changes while dragging: the grabbed row follows the pointer via transform,
+  // the rows it passes slide aside via transform, and the real reorder happens once on drop.
   function attachDrag(li, handle) {
-    var pointerId = null;
-    var dragging = false;
-    var startY = 0;
+    handle.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      var from = Array.prototype.indexOf.call(stepsList.children, li);
+      moveStep(from, from + (e.key === 'ArrowUp' ? -1 : 1));
+      renderSteps();
+      var again = stepsList.querySelector('[data-step-id="' + li.dataset.stepId + '"] .drag-handle');
+      if (again) again.focus();
+    });
 
     handle.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
-      pointerId = e.pointerId;
-      handle.setPointerCapture(pointerId);
-      dragging = true;
-      startY = e.clientY;
-      li.classList.add('is-dragging');
+      var rows = Array.prototype.slice.call(stepsList.children);
+      if (rows.length < 2) return;
       e.preventDefault();
-    });
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 
-    handle.addEventListener('pointermove', function (e) {
-      if (!dragging) return;
-      var dy = e.clientY - startY;
-      li.style.transform = 'translateY(' + dy + 'px)';
-      var siblings = Array.prototype.slice.call(stepsList.children);
-      var idx = siblings.indexOf(li);
-      var rect = li.getBoundingClientRect();
-      var centerY = rect.top + rect.height / 2;
-      var next = siblings[idx + 1];
-      if (next) {
-        var rNext = next.getBoundingClientRect();
-        if (centerY > rNext.top + rNext.height / 2) {
-          stepsList.insertBefore(next, li);
-          startY += rNext.height + 10;
-          return;
-        }
-      }
-      var prev = siblings[idx - 1];
-      if (prev) {
-        var rPrev = prev.getBoundingClientRect();
-        if (centerY < rPrev.top + rPrev.height / 2) {
-          stepsList.insertBefore(li, prev);
-          startY -= (rPrev.height + 10);
-        }
-      }
-    });
+      var pointerId = e.pointerId;
+      try { handle.setPointerCapture(pointerId); } catch (err) {}
 
-    function endDrag(e) {
-      if (!dragging) return;
-      dragging = false;
-      try { handle.releasePointerCapture(pointerId); } catch (err) {}
-      li.classList.remove('is-dragging');
-      li.style.transform = '';
-      var ids = Array.prototype.map.call(stepsList.children, function (child) { return child.dataset.stepId; });
-      var list = getActiveList();
-      var reordered = ids.map(function (id) {
-        return list.find(function (s) { return s.id === id; });
-      }).filter(Boolean);
-      if (reordered.length === list.length) { setActiveList(reordered); save(); }
-    }
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+      var fromIndex = rows.indexOf(li);
+      var scrollStart = window.scrollY;
+      var rects = rows.map(function (r) {
+        var b = r.getBoundingClientRect();
+        return { top: b.top + scrollStart, height: b.height };
+      });
+      var gap = rects[1].top - (rects[0].top + rects[0].height);
+      var self = rects[fromIndex];
+      var last = rects[rects.length - 1];
+      var startPointerY = e.clientY + scrollStart;
+      var pointerClientY = e.clientY;
+      var targetIndex = fromIndex;
+      var raf = null;
+      var finished = false;
+
+      stepsList.classList.add('is-reordering');
+      li.classList.add('is-dragging');
+
+      function applyShifts() {
+        rows.forEach(function (r, i) {
+          if (i === fromIndex) return;
+          var shift = 0;
+          if (targetIndex > fromIndex && i > fromIndex && i <= targetIndex) shift = -(self.height + gap);
+          else if (targetIndex < fromIndex && i >= targetIndex && i < fromIndex) shift = self.height + gap;
+          r.style.transform = shift ? 'translate3d(0,' + shift + 'px,0)' : '';
+        });
+      }
+
+      function update() {
+        var dy = pointerClientY + window.scrollY - startPointerY;
+        dy = Math.max(rects[0].top - self.top, Math.min(last.top + last.height - self.top - self.height, dy));
+        li.style.transform = 'translate3d(0,' + dy + 'px,0) scale(1.02)';
+        var top = self.top + dy, bottom = top + self.height;
+        var t = fromIndex;
+        for (var i = fromIndex + 1; i < rows.length; i++) { if (bottom > rects[i].top + rects[i].height / 2) t = i; }
+        for (var j = fromIndex - 1; j >= 0; j--) { if (top < rects[j].top + rects[j].height / 2) t = j; }
+        if (t !== targetIndex) { targetIndex = t; applyShifts(); }
+      }
+
+      function tick() {
+        if (finished) return;
+        var edge = 90, speed = 0;
+        if (pointerClientY < edge) speed = -Math.ceil((edge - pointerClientY) / 5);
+        else if (pointerClientY > window.innerHeight - edge) speed = Math.ceil((pointerClientY - (window.innerHeight - edge)) / 5);
+        if (speed) { window.scrollBy(0, speed); update(); }
+        raf = requestAnimationFrame(tick);
+      }
+
+      function onMove(ev) {
+        if (ev.pointerId !== pointerId) return;
+        pointerClientY = ev.clientY;
+        update();
+      }
+
+      function finish(commit) {
+        if (finished) return;
+        finished = true;
+        cancelAnimationFrame(raf);
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onCancel);
+        try { handle.releasePointerCapture(pointerId); } catch (err) {}
+
+        if (!commit) { targetIndex = fromIndex; applyShifts(); }
+        var settle = 0;
+        if (targetIndex > fromIndex) { for (var k = fromIndex + 1; k <= targetIndex; k++) settle += rects[k].height + gap; }
+        else if (targetIndex < fromIndex) { for (var m = targetIndex; m < fromIndex; m++) settle -= rects[m].height + gap; }
+        li.classList.remove('is-dragging');
+        li.classList.add('is-settling');
+        li.style.transform = 'translate3d(0,' + settle + 'px,0)';
+
+        setTimeout(function () {
+          moveStep(fromIndex, targetIndex);
+          stepsList.classList.remove('is-reordering');
+          renderSteps();
+        }, 210);
+      }
+      function onUp(ev) { if (ev.pointerId === pointerId) finish(true); }
+      function onCancel(ev) { if (ev.pointerId === pointerId) finish(false); }
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onCancel);
+      raf = requestAnimationFrame(tick);
+      update();
+    });
   }
 
   function renderSteps() {
